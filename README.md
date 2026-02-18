@@ -76,7 +76,7 @@ If you already have a COLMAP binary installed, you can point to it via your YAML
 ### 3) Install 3DGS (gaussian-splatting)
 Run:
 ```bash
-python3 tools/01_3DGS_install.py
+python3 tools/01_3DGS_install.py --auto --allow-sudo
 ```
 
 This usually clones/sets up the gaussian-splatting repo under `.third_party/`.
