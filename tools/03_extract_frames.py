@@ -86,8 +86,8 @@ def run_ffmpeg_extract_with_progress(
     fps: float,
     scale: Optional[str],
     ext: str,
-    desc: str
-) -> dict:
+    desc: str,
+jpg_quality: int = 2) -> dict:
     """
     Run ffmpeg extraction and track progress with -progress pipe:1
     Returns stats dict.
@@ -106,7 +106,10 @@ def run_ffmpeg_extract_with_progress(
         "-vsync", "vfr",
     ]
     if ext == "jpg":
-        base_cmd += ["-q:v", "2"]
+        q = int(jpg_quality)
+        if q < 1: q = 1
+        if q > 31: q = 31
+        base_cmd += ["-q:v", str(q)]
     else:
         base_cmd += ["-compression_level", "3"]
 
@@ -185,6 +188,8 @@ def main():
     ap.add_argument("--fps", type=float, default=2.0, help="Frames per second to extract")
     ap.add_argument("--scale", default=None, help="Optional: e.g. 1920:-2 or 1280:-2")
     ap.add_argument("--ext", default="jpg", choices=["jpg", "png"])
+    ap.add_argument("--jpg_quality", type=int, default=2,
+                    help="JPEG quality for ffmpeg -q:v (1=best, 31=worst). Only used when --ext=jpg.")
     ap.add_argument("--video_exts", default="mp4,mov,mkv,webm", help="Comma-separated allowed video extensions")
     args = ap.parse_args()
 
@@ -210,6 +215,8 @@ def main():
             args.scale = ef.get("scale", None)
         if ef.get("ext", None):
             args.ext = str(ef.get("ext"))
+        if ef.get("jpg_quality", None) is not None:
+            args.jpg_quality = int(ef.get("jpg_quality"))
         if ef.get("video_exts", None):
             args.video_exts = str(ef.get("video_exts"))
 
@@ -239,7 +246,8 @@ def main():
             fps=args.fps,
             scale=args.scale,
             ext=args.ext,
-            desc=f"Extract {v.name}"
+            desc=f"Extract {v.name}",
+            jpg_quality=int(getattr(args, "jpg_quality", 2)),
         )
         stats.append(s)
 

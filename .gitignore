@@ -32,5 +32,8 @@ env/
 *.log
 EOF
 
-works/
+project/
+*.mp4
+*.yaml
+
 

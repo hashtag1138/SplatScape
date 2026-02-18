@@ -295,16 +295,16 @@ def build_default_config(repo_root: Path, gpu: bool) -> Dict[str, Any]:
             "feature_extractor": {
                 "ImageReader.single_camera": 1,
                 "ImageReader.camera_model": "OPENCV",
-                "FeatureExtraction.use_gpu": 1 if gpu else 0,
-                "FeatureExtraction.gpu_index": 0 if gpu else -1,
+                "SiftExtraction.use_gpu": 1 if gpu else 0,
+                "SiftExtraction.gpu_index": 0 if gpu else -1,
                 "SiftExtraction.max_image_size": 3200,
                 "SiftExtraction.max_num_features": 8192,
                 "SiftExtraction.first_octave": -1,
             },
             "matcher": {
                 "type": "exhaustive",
-                "FeatureMatching.use_gpu": 1 if gpu else 0,
-                "FeatureMatching.gpu_index": 0 if gpu else -1,
+                "SiftMatching.use_gpu": 1 if gpu else 0,
+                "SiftMatching.gpu_index": 0 if gpu else -1,
                 "SiftMatching.max_ratio": 0.8,
                 "SiftMatching.max_distance": 0.7,
                 "SiftMatching.cross_check": 1,
@@ -484,6 +484,17 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
     scale_s = _prompt("Extract scale (optional, e.g. 1920:-2) (empty = no scale)", "" if scale_def in (None, "None") else str(scale_def)).strip()
     ef["scale"] = scale_s if scale_s else None
     ef["ext"] = (_prompt("Extract image format (jpg|png)", str(ef.get("ext", "jpg"))).strip().lower() or "jpg")
+    # JPEG quality for ffmpeg -q:v (1=best, 31=worst). Only used if ext=jpg.
+    try:
+        jq_def = int(ef.get("jpg_quality", 2))
+    except Exception:
+        jq_def = 2
+    if ef["ext"] == "jpg":
+        ef["jpg_quality"] = _int_prompt("JPEG quality (-q:v, 1=best, 31=worst)", jq_def)
+        if ef["jpg_quality"] < 1: ef["jpg_quality"] = 1
+        if ef["jpg_quality"] > 31: ef["jpg_quality"] = 31
+    else:
+        ef["jpg_quality"] = None
     ef["video_exts"] = _prompt("Allowed video extensions (comma-separated)", str(ef.get("video_exts", "mp4,mov,mkv,webm")))
 
     # Ensure dirs exist
@@ -511,6 +522,10 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
     ff["max_bright_ratio"] = _float_prompt("max_bright_ratio", float(ff.get("max_bright_ratio", 0.60)))
     ff["min_contrast"] = _float_prompt("min_contrast", float(ff.get("min_contrast", 18)))
     ff["min_sharpness"] = _float_prompt("min_sharpness", float(ff.get("min_sharpness", 120)))
+    # Optional: keep only the top N% sharpest frames (overrides min_sharpness). 0 = disabled.
+    ff["sharpness_top_percent"] = _float_prompt("sharpness_top_percent (0 = disabled)", float(ff.get("sharpness_top_percent", 0)))
+    if ff["sharpness_top_percent"] <= 0:
+        ff["sharpness_top_percent"] = None
 
     # Selection controls
     ff["window_size"] = _int_prompt("window_size (0 = disabled)", int(ff.get("window_size", 0)))
@@ -548,13 +563,13 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
     c["paths"]["undistorted_dir"] = str(colmap_dir_p / "undistorted")
     c["paths"]["logs_dir"] = str(colmap_dir_p / "logs")
 
-    use_gpu = _bool_prompt("Use GPU for SIFT feature extraction / matching?", bool(c["feature_extractor"].get("FeatureExtraction.use_gpu", 0)))
-    c["feature_extractor"]["FeatureExtraction.use_gpu"] = 1 if use_gpu else 0
-    c["matcher"]["FeatureMatching.use_gpu"] = 1 if use_gpu else 0
+    use_gpu = _bool_prompt("Use GPU for SIFT feature extraction / matching?", bool(c["feature_extractor"].get("SiftExtraction.use_gpu", 0)))
+    c["feature_extractor"]["SiftExtraction.use_gpu"] = 1 if use_gpu else 0
+    c["matcher"]["SiftMatching.use_gpu"] = 1 if use_gpu else 0
 
-    gpu_index = _int_prompt("GPU index (0 = first GPU)", int(c["feature_extractor"].get("FeatureExtraction.gpu_index", 0))) if use_gpu else -1
-    c["feature_extractor"]["FeatureExtraction.gpu_index"] = gpu_index
-    c["matcher"]["FeatureMatching.gpu_index"] = gpu_index
+    gpu_index = _int_prompt("GPU index (0 = first GPU)", int(c["feature_extractor"].get("SiftExtraction.gpu_index", 0))) if use_gpu else -1
+    c["feature_extractor"]["SiftExtraction.gpu_index"] = gpu_index
+    c["matcher"]["SiftMatching.gpu_index"] = gpu_index
 
     c["feature_extractor"]["ImageReader.single_camera"] = 1 if _bool_prompt("Assume a single camera (recommended for video frames)?", True) else 0
     c["feature_extractor"]["ImageReader.camera_model"] = _prompt(

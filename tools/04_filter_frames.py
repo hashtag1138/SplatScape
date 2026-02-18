@@ -25,6 +25,24 @@ Example:
     --window_size 20 --keep_per_window 3
 """
 
+def _apply_sharpness_percentile(good, top_percent: float):
+    """Keep only the top_percent sharpest items from `good` (list of dicts).
+
+    Returns (kept, (threshold, dropped)) where dropped are the remaining items.
+    If top_percent >= 100, returns (good, None).
+    """
+    p = float(top_percent)
+    if p <= 0:
+        return [], (0.0, good)
+    if p >= 100:
+        return good, None
+    good_sorted = sorted(good, key=lambda r: float(r.get("sharpness", 0.0)), reverse=True)
+    k = max(1, int(round(len(good_sorted) * (p / 100.0))))
+    kept = good_sorted[:k]
+    thr = float(kept[-1].get("sharpness", 0.0)) if kept else 0.0
+    dropped = good_sorted[k:]
+    return kept, (thr, dropped)
+
 import argparse
 import csv
 import json
@@ -153,6 +171,8 @@ def main():
     ap.add_argument("--max_bright_ratio", type=float, default=0.60)
     ap.add_argument("--min_contrast", type=float, default=18)
     ap.add_argument("--min_sharpness", type=float, default=120)
+    ap.add_argument("--sharpness_top_percent", type=float, default=None,
+                    help="Keep only the top N% sharpest images after other thresholds. Example: 30 keeps top 30%. Overrides min_sharpness if set.")
 
     # Selection controls
     ap.add_argument("--window_size", type=int, default=0,
@@ -191,18 +211,19 @@ def main():
             args.out_reject = _p("out_reject", str(Path(str(work_dir)) / "12_frames_reject"))
 
         # Thresholds
-        for k in ["min_brightness","max_brightness","max_dark_ratio","max_bright_ratio","min_contrast","min_sharpness"]:
+        for k in ["min_brightness","max_brightness","max_dark_ratio","max_bright_ratio","min_contrast","min_sharpness","sharpness_top_percent"]:
             if k in ff:
-                setattr(args, k, float(ff[k]))
-
+                if ff.get(k) is not None:
+                    setattr(args, k, float(ff[k]))
         # Selection/dedupe/IO
         for k in ["window_size","keep_per_window","dedupe_phash_dist","max_images"]:
             if k in ff:
-                setattr(args, k, int(ff[k]))
+                if ff.get(k) is not None:
+                    setattr(args, k, int(ff[k]))
         for k in ["dedupe","move"]:
             if k in ff:
-                setattr(args, k, bool(ff[k]))
-
+                if ff.get(k) is not None:
+                    setattr(args, k, bool(ff[k]))
     if not args.in_dir or not args.out_scored or not args.out_keep or not args.out_reject:
         raise SystemExit("You must provide --config or --in_dir/--out_scored/--out_keep/--out_reject.")
 
@@ -291,7 +312,7 @@ def main():
             reasons.append("too_bright")
         if r["contrast"] < args.min_contrast:
             reasons.append("low_contrast")
-        if r["sharpness"] < args.min_sharpness:
+        if (args.sharpness_top_percent is None) and (r["sharpness"] < args.min_sharpness):
             reasons.append("blurry")
 
         if reasons:
@@ -300,7 +321,16 @@ def main():
             good.append(r)
 
     thresh_dt = perf_counter() - thresh_t0
-    print(f"[STATS] after_threshold keep={len(good)} reject={len(bad)} thresh_time_sec={thresh_dt:.2f}")
+    sharp_thr = None
+    if args.sharpness_top_percent is not None:
+        kept, info = _apply_sharpness_percentile(good, args.sharpness_top_percent)
+        if info is not None:
+            sharp_thr, dropped = info
+            for r in dropped:
+                bad.append((r, ["sharpness_percentile_drop"]))
+        good = kept
+    print(f"[STATS] after_threshold keep={len(good)} reject={len(bad)} thresh_time_sec={thresh_dt:.2f}"
+          + (f" sharp_top_percent={args.sharpness_top_percent:g}% sharp_thr={sharp_thr:.3f}" if args.sharpness_top_percent is not None else ""))
 
     # --- Window selection (best-of per chunk per folder) ---
     if args.window_size and args.window_size > 0:

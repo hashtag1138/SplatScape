@@ -132,7 +132,29 @@ def is_debian_like() -> bool:
     return Path("/etc/debian_version").exists()
 
 
+def bootstrap_python() -> Path:
+    """Return a usable system Python for bootstrapping venv creation.
+
+    We prefer sys.executable (the interpreter running this script). If it doesn't
+    exist (rare, but can happen with a broken/removed venv), we fall back to
+    'python3' found in PATH.
+    """
+    py = Path(os.sys.executable)
+    if py.exists():
+        return py
+    import shutil
+    found = shutil.which("python3") or shutil.which("python")
+    if not found:
+        raise RuntimeError("No usable Python found (python3/python not in PATH).")
+    return Path(found)
+
 def in_venv() -> bool:
+    # If VIRTUAL_ENV is set but the interpreter is missing (broken venv), ignore it.
+    try:
+        if not Path(os.sys.executable).exists():
+            return False
+    except Exception:
+        return False
     return (hasattr(os.sys, "base_prefix") and os.sys.prefix != os.sys.base_prefix) or bool(os.environ.get("VIRTUAL_ENV"))
 
 
@@ -146,7 +168,7 @@ def ensure_venv(venv_dir: Path) -> Path:
         return py
     print(f"[colmap_install] Creating venv: {venv_dir}")
     venv_dir.parent.mkdir(parents=True, exist_ok=True)
-    sh(["python3", "-m", "venv", str(venv_dir)])
+    sh([str(bootstrap_python()), "-m", "venv", str(venv_dir)])
     py = venv_python(venv_dir)
     if not py.exists():
         _die(f"Failed to create venv python at: {py}")
@@ -161,6 +183,8 @@ def ensure_python_deps(req_path: Path, venv_dir: Path) -> None:
 
     if in_venv():
         py = Path(os.sys.executable)
+        if not py.exists():
+            py = bootstrap_python()
         venv_used = os.environ.get("VIRTUAL_ENV", "(active venv)")
     else:
         py = ensure_venv(venv_dir)
