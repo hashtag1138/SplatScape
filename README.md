@@ -1,4 +1,5 @@
-# video2Vr — COLMAP → 3D Gaussian Splatting pipeline (with YAML config)
+# SplatScape — From video to 3D Gaussian Splats
+COLMAP → 3D Gaussian Splatting pipeline (with YAML config)
 
 This repo is a **pragmatic pipeline** to go from **video → frames → filtered frames → COLMAP reconstruction → 3D Gaussian Splatting (3DGS)**, with small helper scripts to keep paths consistent via a single `*.yaml` config.
 
