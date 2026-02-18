@@ -37,3 +37,8 @@ project/
 *.yaml
 
 
+
+# local stuff
+.third_party/
+.venv_3dgs/
+tree.txt
