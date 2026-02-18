@@ -523,19 +523,45 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
     ff["min_contrast"] = _float_prompt("min_contrast", float(ff.get("min_contrast", 18)))
     ff["min_sharpness"] = _float_prompt("min_sharpness", float(ff.get("min_sharpness", 120)))
     # Optional: keep only the top N% sharpest frames (overrides min_sharpness). 0 = disabled.
-    ff["sharpness_top_percent"] = _float_prompt("sharpness_top_percent (0 = disabled)", float(ff.get("sharpness_top_percent", 0)))
+    _stp = ff.get("sharpness_top_percent", 0)
+    try:
+        _stp = 0 if _stp is None else float(_stp)
+    except Exception:
+        _stp = 0
+    ff["sharpness_top_percent"] = _float_prompt("sharpness_top_percent (0 = disabled)", _stp)
     if ff["sharpness_top_percent"] <= 0:
         ff["sharpness_top_percent"] = None
 
     # Selection controls
-    ff["window_size"] = _int_prompt("window_size (0 = disabled)", int(ff.get("window_size", 0)))
-    ff["keep_per_window"] = _int_prompt("keep_per_window", int(ff.get("keep_per_window", 3)))
-
+    _i_window_size = ff.get("window_size", 0)
+    try:
+        _i_window_size = 0 if _i_window_size is None else int(_i_window_size)
+    except Exception:
+        _i_window_size = 0
+    ff["window_size"] = _int_prompt("window_size (0 = disabled)", _i_window_size)
+    _i_keep_per_window = ff.get("keep_per_window", 3)
+    try:
+        _i_keep_per_window = 3 if _i_keep_per_window is None else int(_i_keep_per_window)
+    except Exception:
+        _i_keep_per_window = 3
+    ff["keep_per_window"] = _int_prompt("keep_per_window", _i_keep_per_window)
     ff["dedupe"] = _bool_prompt("Enable dedupe (pHash)?", bool(ff.get("dedupe", True)))
-    ff["dedupe_phash_dist"] = _int_prompt("dedupe_phash_dist (<= => near-duplicate)", int(ff.get("dedupe_phash_dist", 6)))
+    _i_dedupe_phash_dist = ff.get("dedupe_phash_dist", 6)
+    try:
+        _i_dedupe_phash_dist = 6 if _i_dedupe_phash_dist is None else int(_i_dedupe_phash_dist)
+    except Exception:
+        _i_dedupe_phash_dist = 6
+    ff["dedupe_phash_dist"] = _int_prompt("dedupe_phash_dist (<= => near-duplicate)", _i_dedupe_phash_dist)
     ff["move"] = _bool_prompt("Move images instead of copy?", bool(ff.get("move", False)))
-    ff["max_images"] = _int_prompt("max_images (0 = no limit)", int(ff.get("max_images", 0)))
 
+    _mi = ff.get("max_images", 0)
+    try:
+        _mi = 0 if _mi is None else int(_mi)
+    except Exception:
+        _mi = 0
+    ff["max_images"] = _int_prompt("max_images (0 = no limit)", _mi)
+
+    
     _ensure_dir(_path_from_user_input(ff["in_dir"], repo_root))
     _ensure_dir(_path_from_user_input(ff["out_scored"], repo_root))
     _ensure_dir(_path_from_user_input(ff["out_keep"], repo_root))
@@ -544,13 +570,10 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
 
     c["colmap_bin"] = _prompt("COLMAP binary", c["colmap_bin"])
 
-    while True:
-        images_s = _prompt_dir("Images directory (must exist)", c["paths"]["images_dir"])
-        images_p = _path_from_user_input(images_s, repo_root)
-        if images_p.is_dir():
-            c["paths"]["images_dir"] = str(images_p)
-            break
-        print(f"[wizard] ERROR: directory does not exist: {images_p}\n")
+    images_s = _prompt_dir("Images directory (will be created if missing)", c["paths"]["images_dir"])
+    images_p = _path_from_user_input(images_s, repo_root)
+    _ensure_dir(images_p)
+    c["paths"]["images_dir"] = str(images_p)
 
     colmap_dir_s = _prompt_dir("COLMAP output directory (will be created)", c["paths"]["colmap_dir"])
     colmap_dir_p = _path_from_user_input(colmap_dir_s, repo_root)
@@ -680,7 +703,12 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
     tr = t.get("train", {}) or {}
 
     tr["preset"] = preset
-    tr["iterations"] = _int_prompt("3DGS training iterations", int(tr.get("iterations", 30000)))
+    _i_iterations = tr.get("iterations", 30000)
+    try:
+        _i_iterations = 30000 if _i_iterations is None else int(_i_iterations)
+    except Exception:
+        _i_iterations = 30000
+    tr["iterations"] = _int_prompt("3DGS training iterations", _i_iterations)
     tr["eval"] = _bool_prompt("3DGS --eval?", bool(tr.get("eval", True)))
 
     # Optional generic knobs (safe for downstream to ignore)
@@ -688,8 +716,12 @@ def interactive_edit(cfg: Dict[str, Any], repo_root: Path) -> Dict[str, Any]:
         "3DGS resolution downscale (1 = full, 2 = half, ...)",
         int(tr.get("resolution", 1)),
     )
-    tr["num_workers"] = _int_prompt("3DGS data loader workers", int(tr.get("num_workers", 4)))
-
+    _i_num_workers = tr.get("num_workers", 4)
+    try:
+        _i_num_workers = 4 if _i_num_workers is None else int(_i_num_workers)
+    except Exception:
+        _i_num_workers = 4
+    tr["num_workers"] = _int_prompt("3DGS data loader workers", _i_num_workers)
     # Densification controls (important for low VRAM GPUs like GTX 1060 3GB).
     # We store them into extra_args to stay compatible with vanilla gaussian-splatting.
     extra_tokens = [str(x) for x in (tr.get("extra_args") or [])]
